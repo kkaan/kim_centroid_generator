@@ -108,8 +108,10 @@ class DICOMHandler:
         # Define possible structure names (case-insensitive)
         possible_structure_names = []
         for i in range(1, 4):
-            possible_structure_names.append(f"seed{i}")  # Lowercase for comparison
-            possible_structure_names.append(f"au{i}")   # Also check for gold markers (Au)
+            possible_structure_names.append(f"seed{i}".lower())      # e.g., "seed1"
+            possible_structure_names.append(f"seed {i}".lower())     # e.g., "seed 1"
+            possible_structure_names.append(f"au{i}".lower())        # e.g., "au1"
+            possible_structure_names.append(f"au {i}".lower())       # e.g., "au 1"
 
         centroids = []
         all_structures_found = False
