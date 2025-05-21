@@ -97,3 +97,46 @@ This script monitors a specified folder for pairs of DICOM RTSTRUCT (Radiation T
     -   **DICOM File Issues:** If files are not processed, check the terminal for errors related to DICOM parsing (e.g., "Invalid DICOM file," "Modality tag missing," "AttributeError"). The files might be corrupted, not valid DICOM, or missing essential tags.
     -   **Structure Naming:** Ensure the ROI names for your target structures in the RTSTRUCT file (e.g., "Seed 1", "AU1") match the patterns the script looks for (case-insensitive "seed" or "au" followed by a number, with or without a space).
 ```
+
+## Creating an Executable (Optional)
+
+For easier distribution and execution on computers that may not have Python or the necessary packages installed, you can create a standalone executable from the script. One common tool for this is PyInstaller.
+
+This section provides basic instructions on how to use PyInstaller.
+
+### 1. Install PyInstaller
+
+If you don't have PyInstaller installed, you can install it using pip. Open your terminal or command prompt and run:
+
+```bash
+pip install pyinstaller
+```
+
+### 2. Build the Executable
+
+Once PyInstaller is installed, you can use it to build the executable.
+
+1.  Open your terminal or command prompt.
+2.  Navigate to the directory where `KIM_Centroid_using_Folder_Monitoring.py` is located.
+3.  Run the following command to create a single-file executable:
+
+    ```bash
+    pyinstaller --onefile KIM_Centroid_using_Folder_Monitoring.py
+    ```
+    -   The `--onefile` option bundles everything into a single executable file.
+    -   You can also add `--name YourAppName` before `--onefile` to specify a name for your executable (e.g., `pyinstaller --name DICOMMonitor --onefile KIM_Centroid_using_Folder_Monitoring.py`).
+    -   For a GUI-less console application like this script, you might also consider adding the `--noconsole` or `--windowed` option if you were creating a GUI app, but for this script, you want the console to see the logs. If you want to hide the console for a background process (though logs would be hidden), you could use `pyinstaller --onefile --windowed KIM_Centroid_using_Folder_Monitoring.py` or `pyinstaller --onefile --noconsole KIM_Centroid_using_Folder_Monitoring.py`. However, for this script, seeing the console output is important, so `--onefile` by itself is usually best.
+
+4.  After PyInstaller finishes, you will find a `dist` subdirectory in your current directory. Inside `dist`, you'll find the executable file (e.g., `KIM_Centroid_using_Folder_Monitoring.exe` on Windows, or `KIM_Centroid_using_Folder_Monitoring` on macOS/Linux).
+
+5.  This executable can then be copied to other machines and run without needing a Python installation or the specific packages.
+```
+
+### 3. Important Considerations
+
+-   **Antivirus Software:** Executables created by PyInstaller, especially single-file executables, are sometimes flagged as suspicious by antivirus software. This is often a false positive due to the way PyInstaller bundles the application. If this happens, you may need to add an exception for the executable in your antivirus program.
+-   **File Paths:** If your script relies on relative paths for external files (which this script doesn't heavily, beyond the output/backup folders derived from `folder_to_watch`), be aware that the executable's working directory might behave differently. For this script, since `folder_to_watch` is an absolute path, it should generally be fine.
+-   **Testing:** Always test the generated executable on a clean machine (or a virtual machine) that mimics the target environment to ensure it works as expected.
+-   **Executable Size:** Single-file executables can be relatively large because they bundle a Python interpreter and necessary libraries.
+-   **Build Time:** The first time you build, PyInstaller might take some time as it analyzes dependencies. Subsequent builds can be faster.
+```
