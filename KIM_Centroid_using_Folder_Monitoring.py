@@ -13,6 +13,7 @@ import shutil
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import time
+import argparse
 
 class DICOMHandler:
     """
@@ -502,8 +503,8 @@ def start_monitoring(folder_to_watch):
     :param folder_to_watch: The path to the folder that should be monitored.
     :type folder_to_watch: str
     """
-    monitoring_path = r"C:\kim"
-    print(f"Monitoring folder: {monitoring_path}")
+    # Use the folder_to_watch argument passed to the function
+    print(f"Monitoring folder: {folder_to_watch}") 
     event_handler = DICOMEventHandler()
     observer = Observer()
     observer.schedule(event_handler, folder_to_watch, recursive=False)
@@ -516,9 +517,22 @@ def start_monitoring(folder_to_watch):
     observer.join()
 
 if __name__ == "__main__":
-    folder_to_watch = r"C:\kim"  # Folder to monitor
+    parser = argparse.ArgumentParser(description="Monitors a folder for DICOM RTSTRUCT and RTPLAN files and calculates centroids.")
+    parser.add_argument(
+        "-f", 
+        "--folder", 
+        type=str, 
+        default=r"C:\kim",
+        help="Path to the folder to monitor for DICOM files. Default: C:\\kim"
+    )
+    args = parser.parse_args()
+    folder_to_watch = args.folder
+
     print(f"Initializing DICOM monitoring script for folder: {folder_to_watch}")
     try:
+        # Note: The start_monitoring function also prints "Monitoring folder: {monitoring_path}"
+        # where monitoring_path is currently hardcoded to C:\kim inside it.
+        # This will be addressed in the next step if required.
         start_monitoring(folder_to_watch)
     except Exception as e:
         # This is a last resort catch for unexpected errors in start_monitoring
