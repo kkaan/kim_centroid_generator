@@ -15,6 +15,27 @@ from watchdog.events import FileSystemEventHandler
 import time
 import argparse
 
+def wait_for_file_ready(path, timeout=30, interval=0.5, stable_checks=2):
+    end = time.time() + timeout
+    last_size = -1
+    stable = 0
+    while time.time() < end:
+        try:
+            size = os.path.getsize(path)
+            with open(path, "rb"):
+                pass  # open succeeded
+            if size == last_size:
+                stable += 1
+                if stable >= stable_checks:
+                    return True
+            else:
+                stable = 0
+                last_size = size
+        except (PermissionError, FileNotFoundError, OSError):
+            pass
+        time.sleep(interval)
+    return False
+
 class DICOMHandler:
     """
     Handles the loading, processing, and analysis of DICOM RTSTRUCT and RTPLAN files.
@@ -430,6 +451,11 @@ class DICOMEventHandler(FileSystemEventHandler):
             return
 
         print(f"Detected file: {event.src_path}")
+
+        if not wait_for_file_ready(event.src_path):
+            print(f"File not ready within timeout, skipping: {event.src_path}")
+            return
+
         print(f"Attempting to read DICOM metadata from: {event.src_path}")
         try:
             dicom_file = pydicom.dcmread(event.src_path, force=True)
@@ -490,6 +516,76 @@ class DICOMEventHandler(FileSystemEventHandler):
                 self.files_detected.pop("plan", None)
         else:
             print("Waiting for the corresponding RTSTRUCT/RTPLAN file to complete the pair.")
+
+    def on_modified(self, event):
+        if event.is_directory:
+            return
+        # Same logic as on_created (wait_for_file_ready + dcmread + modality routing)
+        if event.src_path in self.files_detected:
+            print(f"Detected modified file: {event.src_path}")
+            if not wait_for_file_ready(event.src_path):
+                print(f"File not ready within timeout, skipping: {event.src_path}")
+                return
+            print(f"Attempting to read DICOM metadata from: {event.src_path}")
+            try:
+                dicom_file = pydicom.dcmread(event.src_path, force=True)
+            except FileNotFoundError:
+                print(f"Error: File not found at {event.src_path} during metadata read attempt. It might have been moved or deleted.")
+                return
+            except pydicom.errors.InvalidDicomError as e_dicom:
+                print(f"Error reading DICOM metadata from {event.src_path}: {e_dicom}. File may not be a valid DICOM file or is corrupted.")
+                return
+            except Exception as e:
+                print(f"Unexpected error reading DICOM metadata from {event.src_path}: {e}")
+                return
+
+            try:
+                modality = dicom_file.Modality
+                if not modality: # Check if modality is None or empty string
+                    print(f"Warning: Modality tag is present but empty in {event.src_path}. Cannot determine file type. Skipping file.")
+                    return
+            except AttributeError:
+                print(f"Warning: Modality tag missing in {event.src_path}. Cannot determine if it's RTSTRUCT or RTPLAN. Skipping file.")
+                return
+            except Exception as e_modality: # Catch any other error during modality access
+                print(f"Unexpected error accessing Modality for {event.src_path}: {e_modality}. Skipping file.")
+                return
+
+            print(f"File {event.src_path} identified with Modality: {modality}")
+            
+            if modality == "RTSTRUCT":
+                self.files_detected["structure"] = event.src_path
+                print(f"RTSTRUCT file detected and stored: {event.src_path}")
+            elif modality == "RTPLAN":
+                self.files_detected["plan"] = event.src_path
+                print(f"RTPLAN file detected and stored: {event.src_path}")
+            else:
+                print(f"File {event.src_path} has Modality '{modality}', which is not RTSTRUCT or RTPLAN. Skipping.")
+                return # Not a file type we are interested in pairing.
+            
+            # Check if both files are now detected
+            if "structure" in self.files_detected and "plan" in self.files_detected:
+                rtstruct_file = self.files_detected["structure"]
+                rtplan_file = self.files_detected["plan"]
+                print(f"Both RTSTRUCT ({rtstruct_file}) and RTPLAN ({rtplan_file}) files detected. Initiating processing.")
+
+                try:
+                    handler = DICOMHandler(rtstruct_file, rtplan_file)
+                    if handler.load_files(): # load_files() now has detailed internal logging
+                        handler.process_dicom_files() # process_dicom_files() also has detailed internal logging
+                        print(f"Finished processing pair: RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'.")
+                    else:
+                        print(f"Failed to load DICOM files for processing (structure: {rtstruct_file}, plan: {rtplan_file}). See previous errors from DICOMHandler.load_files(). Waiting for new files.")
+                except Exception as e_process:
+                    print(f"An unexpected error occurred during the setup or execution of DICOM processing for structure: {rtstruct_file}, plan: {rtplan_file}: {e_process}. Waiting for new files.")
+                finally:
+                    # Always reset detected files for this pair attempt, regardless of success or failure,
+                    # to allow new attempts if, e.g., a corrected file is dropped or if one part was bad.
+                    print(f"Resetting detected files for pair: RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'. Ready for new detection cycle.")
+                    self.files_detected.pop("structure", None)
+                    self.files_detected.pop("plan", None)
+            else:
+                print("Waiting for the corresponding RTSTRUCT/RTPLAN file to complete the pair.")
 
 
 def start_monitoring(folder_to_watch):
