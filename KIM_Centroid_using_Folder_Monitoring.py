@@ -42,17 +42,19 @@ class DICOMHandler:
     This includes extracting structure contour data, calculating centroids,
     and retrieving isocenter information.
     """
-    def __init__(self, rtstruct_file, rtplan_file):
+    def __init__(self, rtstruct_file, rtplan_file, interactive_mode=False):
         """
         Initializes the DICOMHandler with paths to RTSTRUCT and RTPLAN files.
 
         :param rtstruct_file: Path to the RTSTRUCT DICOM file.
         :param rtplan_file: Path to the RTPLAN DICOM file.
+        :param interactive_mode: Whether to enable interactive structure selection.
         """
         self.rtstruct_file = rtstruct_file
         self.rtplan_file = rtplan_file
         self.rtstruct = None
         self.rtplan = None
+        self.interactive_mode = interactive_mode
 
     def load_files(self):
         """
@@ -328,6 +330,29 @@ class DICOMHandler:
         
         print("Finished structure processing loop.")
 
+        # If no default structures found and interactive mode is enabled, prompt user
+        if not all_structures_found and self.interactive_mode:
+            print("No default structures found. Attempting interactive structure selection...")
+            custom_structures = self.prompt_for_custom_structures(structure_names)
+            
+            if custom_structures is None:
+                print("User chose to skip this file pair.")
+                return
+            
+            print(f"Processing {len(custom_structures)} user-selected structures...")
+            # Process custom selected structures
+            for structure in custom_structures:
+                print(f"Processing user-selected structure: {structure}")
+                points = self.get_structure_contours(self.rtstruct, structure)
+                if points is not None:
+                    print(f"Successfully retrieved contour points for {structure}. Calculating centroid.")
+                    centroid = self.calculate_centroid(points)
+                    print(f"Calculated centroid for {structure}: {centroid}")
+                    centroids.append(centroid)
+                    all_structures_found = True
+                else:
+                    print(f"Could not retrieve contour points for {structure}. It will be skipped.")
+
         if not all_structures_found:
             print("No targetable structures with valid contours were found. Centroid file will not be generated.")
             return
@@ -420,20 +445,155 @@ class DICOMHandler:
         shutil.move(source_file, destination_dir)
         print(f"Moved {source_file} to {destination_file}")
 
+    def prompt_for_custom_structures(self, available_structures):
+        """
+        Prompts the user to select custom structure names from available structures.
+        
+        :param available_structures: List of available structure names from DICOM file
+        :return: List of selected structure names, or None if user cancels
+        """
+        print("\n" + "="*60)
+        print("No default seed/marker structures found!")
+        print("Available structures in this DICOM file:")
+        print("="*60)
+        
+        for i, structure in enumerate(available_structures, 1):
+            print(f"{i:2d}. {structure}")
+        
+        print("\nPlease select structures to process:")
+        print("- Enter numbers separated by commas (e.g., 1,3,5)")
+        print("- Enter 'all' to select all structures")
+        print("- Enter 'skip' to skip this file pair")
+        print("="*60)
+        
+        while True:
+            try:
+                user_input = input("Your selection: ").strip().lower()
+                
+                if user_input == 'skip':
+                    print("Skipping this file pair...")
+                    return None
+                
+                if user_input == 'all':
+                    print(f"Selected all {len(available_structures)} structures")
+                    return available_structures.copy()
+                
+                # Parse comma-separated numbers
+                selected_indices = []
+                for item in user_input.split(','):
+                    idx = int(item.strip()) - 1  # Convert to 0-based index
+                    if 0 <= idx < len(available_structures):
+                        selected_indices.append(idx)
+                    else:
+                        print(f"Invalid selection: {item.strip()}. Please enter numbers between 1 and {len(available_structures)}")
+                        raise ValueError("Invalid selection")
+                
+                if not selected_indices:
+                    print("No valid structures selected. Please try again.")
+                    continue
+                
+                selected_structures = [available_structures[i] for i in selected_indices]
+                print(f"Selected structures: {', '.join(selected_structures)}")
+                return selected_structures
+                
+            except (ValueError, IndexError):
+                print("Invalid input. Please enter numbers separated by commas, 'all', or 'skip'")
+                continue
+            except KeyboardInterrupt:
+                print("\nOperation cancelled by user")
+                return None
+
+    def validate_structure_selection(self, user_input, available_structures):
+        """
+        Validates user structure selection input.
+        
+        :param user_input: User input string
+        :param available_structures: List of available structure names
+        :return: Tuple of (is_valid, selected_structures_or_error_msg)
+        """
+        user_input = user_input.strip().lower()
+        
+        if user_input == 'skip':
+            return True, None
+        
+        if user_input == 'all':
+            return True, available_structures.copy()
+        
+        try:
+            selected_indices = []
+            for item in user_input.split(','):
+                idx = int(item.strip()) - 1
+                if 0 <= idx < len(available_structures):
+                    selected_indices.append(idx)
+                else:
+                    return False, f"Invalid selection: {item.strip()}. Must be between 1 and {len(available_structures)}"
+            
+            if not selected_indices:
+                return False, "No valid structures selected"
+            
+            selected_structures = [available_structures[i] for i in selected_indices]
+            return True, selected_structures
+            
+        except ValueError:
+            return False, "Invalid input format. Use numbers separated by commas, 'all', or 'skip'"
+
+def prompt_for_interactive_mode():
+    """
+    Prompts the user at startup to choose whether to enable interactive mode.
+    
+    :return: True if user wants interactive mode, False otherwise
+    """
+    print("\n" + "="*60)
+    print("DICOM Centroid Calculator - Startup Configuration")
+    print("="*60)
+    print("This application monitors folders for DICOM files and calculates")
+    print("centroids for seed/marker structures.")
+    print()
+    print("INTERACTIVE MODE OPTIONS:")
+    print("- YES: If default seed names aren't found, you'll be prompted")
+    print("       to select custom structures from available options")
+    print("- NO:  Only process files with default seed naming conventions")
+    print("       (seed1, seed 1, au1, au 1, etc.)")
+    print("="*60)
+    
+    while True:
+        try:
+            response = input("Enable interactive mode for custom structure selection? (y/n): ").strip().lower()
+            
+            if response in ['y', 'yes', 'true', '1']:
+                print("Interactive mode ENABLED - you'll be prompted for custom structures when needed.")
+                return True
+            elif response in ['n', 'no', 'false', '0']:
+                print("Interactive mode DISABLED - only default seed names will be processed.")
+                return False
+            else:
+                print("Please enter 'y' for yes or 'n' for no.")
+                continue
+                
+        except KeyboardInterrupt:
+            print("\nOperation cancelled. Defaulting to non-interactive mode.")
+            return False
+        except EOFError:
+            print("\nInput ended. Defaulting to non-interactive mode.")
+            return False
+
 class DICOMEventHandler(FileSystemEventHandler):
     """
     Handles file system events, specifically the creation of new files.
     It checks for DICOM RTSTRUCT and RTPLAN files and triggers processing
     when both are detected.
     """
-    def __init__(self):
+    def __init__(self, interactive_mode=False):
         """
         Initializes the DICOMEventHandler.
 
         Sets up an empty dictionary `self.files_detected` to keep track
         of detected RTSTRUCT and RTPLAN files.
+        
+        :param interactive_mode: Whether to enable interactive structure selection.
         """
         self.files_detected = {}
+        self.interactive_mode = interactive_mode
 
     def on_created(self, event):
         """
@@ -500,7 +660,7 @@ class DICOMEventHandler(FileSystemEventHandler):
             print(f"Both RTSTRUCT ({rtstruct_file}) and RTPLAN ({rtplan_file}) files detected. Initiating processing.")
 
             try:
-                handler = DICOMHandler(rtstruct_file, rtplan_file)
+                handler = DICOMHandler(rtstruct_file, rtplan_file, self.interactive_mode)
                 if handler.load_files(): # load_files() now has detailed internal logging
                     handler.process_dicom_files() # process_dicom_files() also has detailed internal logging
                     print(f"Finished processing pair: RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'.")
@@ -570,7 +730,7 @@ class DICOMEventHandler(FileSystemEventHandler):
                 print(f"Both RTSTRUCT ({rtstruct_file}) and RTPLAN ({rtplan_file}) files detected. Initiating processing.")
 
                 try:
-                    handler = DICOMHandler(rtstruct_file, rtplan_file)
+                    handler = DICOMHandler(rtstruct_file, rtplan_file, self.interactive_mode)
                     if handler.load_files(): # load_files() now has detailed internal logging
                         handler.process_dicom_files() # process_dicom_files() also has detailed internal logging
                         print(f"Finished processing pair: RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'.")
@@ -588,7 +748,7 @@ class DICOMEventHandler(FileSystemEventHandler):
                 print("Waiting for the corresponding RTSTRUCT/RTPLAN file to complete the pair.")
 
 
-def start_monitoring(folder_to_watch):
+def start_monitoring(folder_to_watch, interactive_mode=False):
     """
     Initializes and starts the file system observer to monitor the specified folder.
 
@@ -598,10 +758,14 @@ def start_monitoring(folder_to_watch):
 
     :param folder_to_watch: The path to the folder that should be monitored.
     :type folder_to_watch: str
+    :param interactive_mode: Whether to enable interactive structure selection.
+    :type interactive_mode: bool
     """
     # Use the folder_to_watch argument passed to the function
     print(f"Monitoring folder: {folder_to_watch}") 
-    event_handler = DICOMEventHandler()
+    if interactive_mode:
+        print("Interactive mode enabled - will prompt for custom structure names when defaults not found")
+    event_handler = DICOMEventHandler(interactive_mode)
     observer = Observer()
     observer.schedule(event_handler, folder_to_watch, recursive=False)
     observer.start()
@@ -621,15 +785,29 @@ if __name__ == "__main__":
         default=r"C:\kim",
         help="Path to the folder to monitor for DICOM files. Default: C:\\kim"
     )
+    parser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        help="Enable interactive mode to input custom structure names when defaults are not found"
+    )
     args = parser.parse_args()
     folder_to_watch = args.folder
+    interactive_mode = args.interactive
 
     print(f"Initializing DICOM monitoring script for folder: {folder_to_watch}")
+    
+    # If interactive mode wasn't specified via command line, prompt user at startup
+    if not interactive_mode:
+        interactive_mode = prompt_for_interactive_mode()
+    else:
+        print("Interactive mode ENABLED via command line argument.")
+    
     try:
         # Note: The start_monitoring function also prints "Monitoring folder: {monitoring_path}"
         # where monitoring_path is currently hardcoded to C:\kim inside it.
         # This will be addressed in the next step if required.
-        start_monitoring(folder_to_watch)
+        start_monitoring(folder_to_watch, interactive_mode)
     except Exception as e:
         # This is a last resort catch for unexpected errors in start_monitoring
         # or its setup that weren't KeyboardInterrupt.
