@@ -306,7 +306,7 @@ class DICOMHandler:
             possible_structure_names.append(f"au{i}".lower())        # e.g., "au1"
             possible_structure_names.append(f"au {i}".lower())       # e.g., "au 1"
 
-        centroids = []
+        structure_centroids = []  # List of tuples: (structure_name, centroid)
         all_structures_found = False
 
         print("\nStarting structure processing loop...")
@@ -320,7 +320,7 @@ class DICOMHandler:
                     print(f"Successfully retrieved contour points for {structure}. Calculating centroid.")
                     centroid = self.calculate_centroid(points)
                     print(f"Calculated centroid for {structure}: {centroid}")
-                    centroids.append(centroid)
+                    structure_centroids.append((structure, centroid))
                     all_structures_found = True
                 else:
                     # get_structure_contours already prints detailed messages if points are None
@@ -348,7 +348,7 @@ class DICOMHandler:
                     print(f"Successfully retrieved contour points for {structure}. Calculating centroid.")
                     centroid = self.calculate_centroid(points)
                     print(f"Calculated centroid for {structure}: {centroid}")
-                    centroids.append(centroid)
+                    structure_centroids.append((structure, centroid))
                     all_structures_found = True
                 else:
                     print(f"Could not retrieve contour points for {structure}. It will be skipped.")
@@ -409,8 +409,10 @@ class DICOMHandler:
                 f.write(f"{patient_id_struct}\n")
                 f.write(f"{patient_name}\n")
                 
-                for i, centroid in enumerate(centroids):
-                    f.write(f"Seed {i + 1}, X= {self.convert_to_cm(centroid[0]):.2f}, Y= {self.convert_to_cm(centroid[1]):.2f}, Z= {self.convert_to_cm(centroid[2]):.2f}\n")
+                for structure_name, centroid in structure_centroids:
+                    # Capitalize the structure name for cleaner output
+                    display_name = structure_name.title()
+                    f.write(f"{display_name}, X= {self.convert_to_cm(centroid[0]):.2f}, Y= {self.convert_to_cm(centroid[1]):.2f}, Z= {self.convert_to_cm(centroid[2]):.2f}\n")
                 
                 if isocenter is not None:
                     f.write(f"Isocenter (cm), X= {self.convert_to_cm(isocenter[0]):.2f}, Y= {self.convert_to_cm(isocenter[1]):.2f}, Z= {self.convert_to_cm(isocenter[2]):.2f}\n")
