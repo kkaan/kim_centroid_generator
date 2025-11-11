@@ -1,11 +1,7 @@
-# Personal Progress Log - DICOM Centroid Calculator
+# TODO - DICOM Centroid Calculator
 
 ## Working Directories
 
-### Primary Development Directory
-- `/mnt/c/Users/kankean.kandasamy/KIM_centroid_generator`
-  - Main codebase and development environment
-  - Contains source code, documentation, and build configurations
 
 ### Test Data Directory  
 - `/mnt/p/04_Projects/07_KIM/Test set for Centroid Script/Spark Centre5 TP RS Centroids/`
