@@ -19,6 +19,14 @@
 - [x] Personal progress tracking system established
 - [ ] Fix PyInstaller permission error and create Windows executable
 
+## Testing & Validation Results
+- [x] Compared original baseline branch output with interactive mode branch output
+  - Tested against verified centroid files
+  - **Result**: Identical centroid calculations - interactive mode additions have not affected core functionality
+- [x] KIM reads centroid files outputted from new code without any errors
+  - Output format validated and compatible with KIM system
+- [ ] Still need to validate against Spark data and other test datasets
+
 ## Next Priority: Validation Against Spark Test Set
 - [ ] Validate application with Spark Centre test data
 - [ ] Compare centroid calculations with Spark reference data
