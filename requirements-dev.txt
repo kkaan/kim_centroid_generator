@@ -1,0 +1,12 @@
+# Development dependencies for KIM Centroid Generator
+# Install with: pip install -r requirements-dev.txt
+
+# Testing framework
+pytest>=8.0.0
+pytest-cov>=4.1.0  # Code coverage reports
+
+# Code quality tools (optional, for those who want them)
+# Uncomment if team wants to use these:
+# black>=24.0.0      # Code formatting
+# flake8>=7.0.0      # Linting
+# mypy>=1.8.0        # Type checking
