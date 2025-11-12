@@ -1,6 +1,7 @@
 # KIM Centroid Generator - User Guide
 **Authors:** KRM, KK
 
+> 📄 **PDF Version Available:** You can also [download this guide as a PDF](USER_GUIDE.pdf) for offline reference and printing.
 
 This guide will help you use the KIM Centroid Generator application to automatically process radiation therapy DICOM files and calculate seed/marker positions. This application runs on your computer and monitors a folder for new DICOM files.
 

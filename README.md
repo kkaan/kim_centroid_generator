@@ -24,6 +24,16 @@ This script monitors a specified folder for pairs of DICOM RTSTRUCT (Radiation T
 -   **Detailed Logging:** Provides real-time status updates and error messages to the terminal, facilitating monitoring and troubleshooting.
 -   **Cross-Platform:** Developed in Python, making it usable across different operating systems with Python installed.
 
+## Documentation
+
+### User Guide
+
+For detailed end-user instructions including setup, daily usage, and troubleshooting:
+- **[View User Guide](docs/USER_GUIDE.md)** - Comprehensive guide for clinical users
+- **[Download User Guide PDF](docs/USER_GUIDE.pdf)** - Printable PDF version for offline reference
+
+The User Guide is specifically designed for clinical staff and includes step-by-step instructions with screenshots.
+
 ## Prerequisites
 
 -   **Python 3.x:** The script is written for Python 3. Ensure you have a Python 3 interpreter installed.
