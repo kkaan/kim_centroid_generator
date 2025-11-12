@@ -1,5 +1,9 @@
 # DICOM RTSTRUCT/RTPLAN Centroid Calculator
 
+![Tests](https://github.com/kkaan/kim_centroid_generator/workflows/Tests/badge.svg)
+![Build](https://github.com/kkaan/kim_centroid_generator/workflows/Build%20Release/badge.svg)
+![Python](https://img.shields.io/badge/python-3.11-blue.svg)
+
 This script monitors a specified folder for pairs of DICOM RTSTRUCT (Radiation Therapy Structure Set) and RTPLAN (Radiation Therapy Plan) files. When a pair is detected, it processes them to:
 - Identify predefined structures of interest (e.g., seeds, gold markers).
 - Calculate the geometric centroid for each identified structure.
@@ -102,6 +106,44 @@ This script monitors a specified folder for pairs of DICOM RTSTRUCT (Radiation T
     -   **DICOM File Issues:** If files are not processed, check the terminal for errors related to DICOM parsing (e.g., "Invalid DICOM file," "Modality tag missing," "AttributeError"). The files might be corrupted, not valid DICOM, or missing essential tags.
     -   **Structure Naming:** Ensure the ROI names for your target structures in the RTSTRUCT file (e.g., "Seed 1", "AU1") match the patterns the script looks for (case-insensitive "seed" or "au" followed by a number, with or without a space).
 ```
+
+## Contributing
+
+We welcome contributions from the team! Whether you're fixing bugs, adding features, or improving documentation, your help makes this project better.
+
+### Quick Start
+
+1. **Clone** the repository
+2. **Create a feature branch** (e.g., `feature/your-feature-name`)
+3. **Make your changes** and test them
+4. **Submit a pull request** to the `main` branch
+
+### Guidelines
+
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines
+- See [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md) for branch naming, commit conventions, and PR process
+- Run tests locally before submitting: `pytest tests/`
+- All PRs require CI passing and one reviewer approval
+
+### Development Setup
+
+```bash
+# Install production dependencies
+pip install -r requirements.txt
+
+# Install development dependencies (testing tools)
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest tests/
+```
+
+### Reporting Issues
+
+Found a bug or have a feature request? [Open an issue](https://github.com/kkaan/kim_centroid_generator/issues) with:
+- Clear description of the problem or suggestion
+- Steps to reproduce (for bugs)
+- Python version and OS information
 
 ## Creating an Executable (Optional)
 

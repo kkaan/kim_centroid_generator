@@ -1,0 +1,61 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v20*'  # Triggers on version tags like v2025.01.15
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build Windows executable
+      run: |
+        pyinstaller KIM_Centroid_using_Folder_Monitoring.spec
+
+    - name: Create release package
+      run: |
+        mkdir release
+        copy dist\KIM_Centroid_using_Folder_Monitoring.exe release\
+        copy README.md release\
+        copy docs\USER_GUIDE.md release\
+
+    - name: Upload executable artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: KIM-Centroid-Windows-${{ github.ref_name }}
+        path: release/
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/KIM_Centroid_using_Folder_Monitoring.exe
+        body: |
+          ## KIM Centroid Generator ${{ github.ref_name }}
+
+          ### Installation
+          1. Download `KIM_Centroid_using_Folder_Monitoring.exe`
+          2. See [User Guide](docs/USER_GUIDE.md) for usage instructions
+
+          ### Changes
+          See [CHANGELOG.md](CHANGELOG.md) for detailed changes in this release.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
