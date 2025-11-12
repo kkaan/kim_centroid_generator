@@ -6,12 +6,17 @@ Version format: `vYYYY.MM.DD` (date-based)
 
 ## [Unreleased]
 
+---
+
+## [v2025.11.12] - 2025-11-12
+
 ### Added
 - Development workflow documentation (DEVELOPMENT_WORKFLOW.md)
 - Contributing guidelines (CONTRIBUTING.md)
 - Automated CI/CD with GitHub Actions
 - Basic smoke tests for core functionality
 - Branch protection requirements (PR + 1 reviewer + CI passing)
+- GitHub repository setup guide (GITHUB_SETUP.md)
 
 ---
 
