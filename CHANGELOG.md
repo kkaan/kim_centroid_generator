@@ -13,6 +13,9 @@ Version format: `vYYYY.MM.DD` (date-based)
 - Basic smoke tests for core functionality
 - Branch protection requirements (PR + 1 reviewer + CI passing)
 
+### Testing
+- Workflow infrastructure validation
+
 ---
 
 ## [v2025.01.12] - 2025-01-12
