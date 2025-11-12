@@ -1,15 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_submodules
-
-hidden_wd = collect_submodules('watchdog')
 
 a = Analysis(
     ['KIM_Centroid_using_Folder_Monitoring.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=hidden_wd,
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -35,7 +32,7 @@ exe = EXE(
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch=None,
+    target_arch='win32',
     codesign_identity=None,
     entitlements_file=None,
 )
