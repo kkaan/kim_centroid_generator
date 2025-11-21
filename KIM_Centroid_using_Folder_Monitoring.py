@@ -6,16 +6,26 @@ and saves the results to a text file.
 Author: KRM
 Company: GenesisCare
 """
+import argparse
 import os
+import shutil
+import time
+
 import numpy as np
 import pydicom
-import shutil
-from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-import time
-import argparse
+from watchdog.observers import Observer
 
 def wait_for_file_ready(path, timeout=30, interval=0.5, stable_checks=2):
+    """
+    Wait for a file to be fully written and ready for reading.
+
+    :param path: Path to the file to wait for.
+    :param timeout: Maximum time to wait in seconds.
+    :param interval: Time to wait between checks in seconds.
+    :param stable_checks: Number of consecutive stable size checks required.
+    :return: True if file is ready, False if timeout.
+    """
     end = time.time() + timeout
     last_size = -1
     stable = 0
@@ -42,19 +52,19 @@ class DICOMHandler:
     This includes extracting structure contour data, calculating centroids,
     and retrieving isocenter information.
     """
-    def __init__(self, rtstruct_file, rtplan_file, interactive_mode=False):
+    def __init__(self, rtstruct_file, rtplan_file, enable_interactive=False):
         """
         Initializes the DICOMHandler with paths to RTSTRUCT and RTPLAN files.
 
         :param rtstruct_file: Path to the RTSTRUCT DICOM file.
         :param rtplan_file: Path to the RTPLAN DICOM file.
-        :param interactive_mode: Whether to enable interactive structure selection.
+        :param enable_interactive: Whether to enable interactive structure selection.
         """
         self.rtstruct_file = rtstruct_file
         self.rtplan_file = rtplan_file
         self.rtstruct = None
         self.rtplan = None
-        self.interactive_mode = interactive_mode
+        self.interactive_mode = enable_interactive
 
     def load_files(self):
         """
@@ -78,7 +88,7 @@ class DICOMHandler:
         except Exception as e:
             print(f"Unexpected error reading RT Structure file {self.rtstruct_file}: {e}")
             return False
-        
+
         # Load RTPLAN file
         print(f"Attempting to load RT Plan file: {self.rtplan_file}")
         try:
@@ -93,7 +103,7 @@ class DICOMHandler:
         except Exception as e:
             print(f"Unexpected error reading RT Plan file {self.rtplan_file}: {e}")
             return False
-        
+
         return True
 
     def list_structure_names(self):
@@ -158,36 +168,59 @@ class DICOMHandler:
                 return None
             for roi_contour in dataset.ROIContourSequence:
                 if not hasattr(roi_contour, 'ReferencedROINumber') or not hasattr(roi_contour, 'ContourSequence'):
-                    print(f"Warning: Skipping an ROI in ROIContourSequence due to missing ReferencedROINumber or ContourSequence for {structure_name} (ROINumber: {roi_number}).")
+                    print(
+                        f"Warning: Skipping an ROI in ROIContourSequence due to missing "
+                        f"ReferencedROINumber or ContourSequence for {structure_name} "
+                        f"(ROINumber: {roi_number})."
+                    )
                     continue
                 if roi_contour.ReferencedROINumber == roi_number:
                     contours = []
                     if not roi_contour.ContourSequence: # Check if ContourSequence is present and not empty
-                        print(f"Structure '{structure_name}' (ROINumber: {roi_number}) found, but its ContourSequence is missing or empty.")
+                        print(
+                            f"Structure '{structure_name}' (ROINumber: {roi_number}) "
+                            f"found, but its ContourSequence is missing or empty."
+                        )
                         return None
                     for contour_item in roi_contour.ContourSequence:
                         if not hasattr(contour_item, 'ContourData') or not contour_item.ContourData:
-                            print(f"Warning: Skipping a contour item for {structure_name} (ROINumber: {roi_number}) due to missing or empty ContourData.")
+                            print(
+                                f"Warning: Skipping a contour item for {structure_name} "
+                                f"(ROINumber: {roi_number}) due to missing or empty ContourData."
+                            )
                             continue
                         try:
                             contour_points = np.array(contour_item.ContourData).reshape((-1, 3))
                             contours.append(contour_points)
                         except Exception as e_reshape: # More specific error for reshape
-                            print(f"Error reshaping ContourData for {structure_name} (ROINumber: {roi_number}): {e_reshape}. Data might be malformed.")
-                            # Decide if you want to skip this contour_item or return None for the whole structure
-                            # For now, let's be strict and return None for the structure if any part is bad
-                            return None 
+                            print(
+                                f"Error reshaping ContourData for {structure_name} "
+                                f"(ROINumber: {roi_number}): {e_reshape}. "
+                                f"Data might be malformed."
+                            )
+                            # Decide if you want to skip this contour_item or return None
+                            # For now, let's be strict and return None for the structure
+                            return None
                     if contours:
                         print(f"Successfully extracted contours for {structure_name} (ROINumber: {roi_number})")
                         return np.concatenate(contours, axis=0)
-                    else:
-                        print(f"Structure '{structure_name}' (ROINumber: {roi_number}) found, but no valid contour data could be extracted.")
-                        return None
-            
-            print(f"Contour data for ROINumber {roi_number} (Structure: '{structure_name}') not found in ROIContourSequence.")
+                    print(
+                        f"Structure '{structure_name}' (ROINumber: {roi_number}) found, "
+                        f"but no valid contour data could be extracted."
+                    )
+                    return None
+
+            print(
+                f"Contour data for ROINumber {roi_number} "
+                f"(Structure: '{structure_name}') not found in ROIContourSequence."
+            )
             return None
         except AttributeError as e:
-            print(f"Error accessing ROIContourSequence or its elements for {structure_name} (ROINumber: {roi_number}): {e}. DICOM structure may be incomplete or malformed.")
+            print(
+                f"Error accessing ROIContourSequence or its elements for {structure_name} "
+                f"(ROINumber: {roi_number}): {e}. "
+                f"DICOM structure may be incomplete or malformed."
+            )
             return None
         except Exception as e:
             print(f"Unexpected error while extracting contours for {structure_name} (ROINumber: {roi_number}): {e}")
@@ -227,29 +260,44 @@ class DICOMHandler:
                 return None
 
             for i, beam in enumerate(dataset.BeamSequence):
-                beam_identifier = beam.BeamName if hasattr(beam, 'BeamName') else f"Beam {i+1} (Number: {beam.BeamNumber})" if hasattr(beam, 'BeamNumber') else f"Beam at index {i}"
-                
+                if hasattr(beam, 'BeamName'):
+                    beam_identifier = beam.BeamName
+                elif hasattr(beam, 'BeamNumber'):
+                    beam_identifier = f"Beam {i+1} (Number: {beam.BeamNumber})"
+                else:
+                    beam_identifier = f"Beam at index {i}"
+
                 if not hasattr(beam, 'ControlPointSequence') or not beam.ControlPointSequence:
                     print(f"Warning: ControlPointSequence missing or empty for {beam_identifier}.")
                     continue  # Try next beam
 
                 for j, control_point in enumerate(beam.ControlPointSequence):
                     if not hasattr(control_point, 'IsocenterPosition'):
-                        # This might be too verbose if many control points lack it, but for now, let's log it.
-                        # Consider logging only once per beam if IsocenterPosition is consistently missing.
-                        print(f"Warning: IsocenterPosition missing in a control point for {beam_identifier}, ControlPointIndex {j}.")
+                        # This might be too verbose if many control points lack it
+                        # Consider logging only once per beam
+                        print(
+                            f"Warning: IsocenterPosition missing in a control point "
+                            f"for {beam_identifier}, ControlPointIndex {j}."
+                        )
                         continue # Try next control point
-                    
+
                     # IsocenterPosition found
                     try:
                         isocenter_position = np.array(control_point.IsocenterPosition)
-                        print(f"Successfully retrieved IsocenterPosition from {beam_identifier}, ControlPointIndex {j}: {isocenter_position}")
+                        print(
+                            f"Successfully retrieved IsocenterPosition from "
+                            f"{beam_identifier}, ControlPointIndex {j}: {isocenter_position}"
+                        )
                         return isocenter_position
                     except Exception as e_np: # Catch errors during np.array conversion
-                        print(f"Error converting IsocenterPosition to NumPy array for {beam_identifier}, ControlPointIndex {j}: {e_np}. Data might be malformed.")
-                        # Depending on policy, you might want to return None here or try other control points/beams.
-                        # For now, if one is malformed, we'll assume it's critical for this beam.
-                        continue # Or return None if one bad apple spoils the bunch. For now, try next.
+                        print(
+                            f"Error converting IsocenterPosition to NumPy array for "
+                            f"{beam_identifier}, ControlPointIndex {j}: {e_np}. "
+                            f"Data might be malformed."
+                        )
+                        # Depending on policy, you might return None here
+                        # For now, try next control point
+                        continue
 
         except AttributeError as e:
             print(f"Error: A DICOM tag is missing or attribute name is incorrect while accessing RT Plan data: {e}")
@@ -257,7 +305,7 @@ class DICOMHandler:
         except Exception as e:
             print(f"Unexpected error while retrieving isocenter from RT Plan: {e}")
             return None
-        
+
         # If loop completes without returning, no isocenter was found
         print("No isocenter data found in RT Plan after checking all beams and control points.")
         return None
@@ -285,7 +333,7 @@ class DICOMHandler:
         if self.rtstruct is None or self.rtplan is None:
             print("RT Structure or RT Plan not loaded properly.")
             return
-        
+
         patient_id_struct = self.rtstruct.PatientID
         patient_id_plan = self.rtplan.PatientID
         patient_name = str(self.rtstruct.PatientName).replace("^", ",")
@@ -327,18 +375,18 @@ class DICOMHandler:
                     print(f"Could not retrieve contour points for {structure}. It will be skipped.")
             else:
                 print(f"Structure '{structure}' is not listed in the available ROIs from StructureSetROISequence.")
-        
+
         print("Finished structure processing loop.")
 
         # If no default structures found and interactive mode is enabled, prompt user
         if not all_structures_found and self.interactive_mode:
             print("No default structures found. Attempting interactive structure selection...")
             custom_structures = self.prompt_for_custom_structures(structure_names)
-            
+
             if custom_structures is None:
                 print("User chose to skip this file pair.")
                 return
-            
+
             print(f"Processing {len(custom_structures)} user-selected structures...")
             # Process custom selected structures
             for structure in custom_structures:
@@ -405,17 +453,27 @@ class DICOMHandler:
 
         print(f"Saving output to file: {output_file}")
         try:
-            with open(output_file, "w") as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 f.write(f"{patient_id_struct}\n")
                 f.write(f"{patient_name}\n")
-                
+
                 for structure_name, centroid in structure_centroids:
                     # Capitalize the structure name for cleaner output
                     display_name = structure_name.title()
-                    f.write(f"{display_name}, X= {self.convert_to_cm(centroid[0]):.2f}, Y= {self.convert_to_cm(centroid[1]):.2f}, Z= {self.convert_to_cm(centroid[2]):.2f}\n")
-                
+                    f.write(
+                        f"{display_name}, "
+                        f"X= {self.convert_to_cm(centroid[0]):.2f}, "
+                        f"Y= {self.convert_to_cm(centroid[1]):.2f}, "
+                        f"Z= {self.convert_to_cm(centroid[2]):.2f}\n"
+                    )
+
                 if isocenter is not None:
-                    f.write(f"Isocenter (cm), X= {self.convert_to_cm(isocenter[0]):.2f}, Y= {self.convert_to_cm(isocenter[1]):.2f}, Z= {self.convert_to_cm(isocenter[2]):.2f}\n")
+                    f.write(
+                        f"Isocenter (cm), "
+                        f"X= {self.convert_to_cm(isocenter[0]):.2f}, "
+                        f"Y= {self.convert_to_cm(isocenter[1]):.2f}, "
+                        f"Z= {self.convert_to_cm(isocenter[2]):.2f}\n"
+                    )
                 else:
                     f.write("No isocenter data found.\n") # Consistent with earlier logging
             print(f"Successfully wrote output file: {output_file}")
@@ -450,7 +508,7 @@ class DICOMHandler:
     def prompt_for_custom_structures(self, available_structures):
         """
         Prompts the user to select custom structure names from available structures.
-        
+
         :param available_structures: List of available structure names from DICOM file
         :return: List of selected structure names, or None if user cancels
         """
@@ -458,28 +516,28 @@ class DICOMHandler:
         print("No default seed/marker structures found!")
         print("Available structures in this DICOM file:")
         print("="*60)
-        
+
         for i, structure in enumerate(available_structures, 1):
             print(f"{i:2d}. {structure}")
-        
+
         print("\nPlease select structures to process:")
         print("- Enter numbers separated by commas (e.g., 1,3,5)")
         print("- Enter 'all' to select all structures")
         print("- Enter 'skip' to skip this file pair")
         print("="*60)
-        
+
         while True:
             try:
                 user_input = input("Your selection: ").strip().lower()
-                
+
                 if user_input == 'skip':
                     print("Skipping this file pair...")
                     return None
-                
+
                 if user_input == 'all':
                     print(f"Selected all {len(available_structures)} structures")
                     return available_structures.copy()
-                
+
                 # Parse comma-separated numbers
                 selected_indices = []
                 for item in user_input.split(','):
@@ -489,15 +547,15 @@ class DICOMHandler:
                     else:
                         print(f"Invalid selection: {item.strip()}. Please enter numbers between 1 and {len(available_structures)}")
                         raise ValueError("Invalid selection")
-                
+
                 if not selected_indices:
                     print("No valid structures selected. Please try again.")
                     continue
-                
+
                 selected_structures = [available_structures[i] for i in selected_indices]
                 print(f"Selected structures: {', '.join(selected_structures)}")
                 return selected_structures
-                
+
             except (ValueError, IndexError):
                 print("Invalid input. Please enter numbers separated by commas, 'all', or 'skip'")
                 continue
@@ -508,19 +566,19 @@ class DICOMHandler:
     def validate_structure_selection(self, user_input, available_structures):
         """
         Validates user structure selection input.
-        
+
         :param user_input: User input string
         :param available_structures: List of available structure names
         :return: Tuple of (is_valid, selected_structures_or_error_msg)
         """
         user_input = user_input.strip().lower()
-        
+
         if user_input == 'skip':
             return True, None
-        
+
         if user_input == 'all':
             return True, available_structures.copy()
-        
+
         try:
             selected_indices = []
             for item in user_input.split(','):
@@ -529,20 +587,20 @@ class DICOMHandler:
                     selected_indices.append(idx)
                 else:
                     return False, f"Invalid selection: {item.strip()}. Must be between 1 and {len(available_structures)}"
-            
+
             if not selected_indices:
                 return False, "No valid structures selected"
-            
+
             selected_structures = [available_structures[i] for i in selected_indices]
             return True, selected_structures
-            
+
         except ValueError:
             return False, "Invalid input format. Use numbers separated by commas, 'all', or 'skip'"
 
 def prompt_for_interactive_mode():
     """
     Prompts the user at startup to choose whether to enable interactive mode.
-    
+
     :return: True if user wants interactive mode, False otherwise
     """
     print("\n" + "="*60)
@@ -557,21 +615,20 @@ def prompt_for_interactive_mode():
     print("- NO:  Only process files with default seed naming conventions")
     print("       (seed1, seed 1, au1, au 1, etc.)")
     print("="*60)
-    
+
     while True:
         try:
             response = input("Enable interactive mode for custom structure selection? (y/n): ").strip().lower()
-            
+
             if response in ['y', 'yes', 'true', '1']:
                 print("Interactive mode ENABLED - you'll be prompted for custom structures when needed.")
                 return True
-            elif response in ['n', 'no', 'false', '0']:
+            if response in ['n', 'no', 'false', '0']:
                 print("Interactive mode DISABLED - only default seed names will be processed.")
                 return False
-            else:
-                print("Please enter 'y' for yes or 'n' for no.")
-                continue
-                
+            print("Please enter 'y' for yes or 'n' for no.")
+            continue
+
         except KeyboardInterrupt:
             print("\nOperation cancelled. Defaulting to non-interactive mode.")
             return False
@@ -585,17 +642,17 @@ class DICOMEventHandler(FileSystemEventHandler):
     It checks for DICOM RTSTRUCT and RTPLAN files and triggers processing
     when both are detected.
     """
-    def __init__(self, interactive_mode=False):
+    def __init__(self, enable_interactive=False):
         """
         Initializes the DICOMEventHandler.
 
         Sets up an empty dictionary `self.files_detected` to keep track
         of detected RTSTRUCT and RTPLAN files.
-        
-        :param interactive_mode: Whether to enable interactive structure selection.
+
+        :param enable_interactive: Whether to enable interactive structure selection.
         """
         self.files_detected = {}
-        self.interactive_mode = interactive_mode
+        self.interactive_mode = enable_interactive
 
     def on_created(self, event):
         """
@@ -644,7 +701,7 @@ class DICOMEventHandler(FileSystemEventHandler):
             return
 
         print(f"File {event.src_path} identified with Modality: {modality}")
-        
+
         if modality == "RTSTRUCT":
             self.files_detected["structure"] = event.src_path
             print(f"RTSTRUCT file detected and stored: {event.src_path}")
@@ -652,34 +709,61 @@ class DICOMEventHandler(FileSystemEventHandler):
             self.files_detected["plan"] = event.src_path
             print(f"RTPLAN file detected and stored: {event.src_path}")
         else:
-            print(f"File {event.src_path} has Modality '{modality}', which is not RTSTRUCT or RTPLAN. Skipping.")
+            print(
+                f"File {event.src_path} has Modality '{modality}', "
+                f"which is not RTSTRUCT or RTPLAN. Skipping."
+            )
             return # Not a file type we are interested in pairing.
-        
+
         # Check if both files are now detected
         if "structure" in self.files_detected and "plan" in self.files_detected:
             rtstruct_file = self.files_detected["structure"]
             rtplan_file = self.files_detected["plan"]
-            print(f"Both RTSTRUCT ({rtstruct_file}) and RTPLAN ({rtplan_file}) files detected. Initiating processing.")
+            print(
+                f"Both RTSTRUCT ({rtstruct_file}) and RTPLAN ({rtplan_file}) "
+                f"files detected. Initiating processing."
+            )
 
             try:
                 handler = DICOMHandler(rtstruct_file, rtplan_file, self.interactive_mode)
                 if handler.load_files(): # load_files() now has detailed internal logging
-                    handler.process_dicom_files() # process_dicom_files() also has detailed internal logging
-                    print(f"Finished processing pair: RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'.")
+                    handler.process_dicom_files() # detailed internal logging
+                    print(
+                        f"Finished processing pair: "
+                        f"RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'."
+                    )
                 else:
-                    print(f"Failed to load DICOM files for processing (structure: {rtstruct_file}, plan: {rtplan_file}). See previous errors from DICOMHandler.load_files(). Waiting for new files.")
+                    print(
+                        f"Failed to load DICOM files for processing "
+                        f"(structure: {rtstruct_file}, plan: {rtplan_file}). "
+                        f"See previous errors from DICOMHandler.load_files(). "
+                        f"Waiting for new files."
+                    )
             except Exception as e_process:
-                print(f"An unexpected error occurred during the setup or execution of DICOM processing for structure: {rtstruct_file}, plan: {rtplan_file}: {e_process}. Waiting for new files.")
+                print(
+                    f"An unexpected error occurred during the setup or execution of "
+                    f"DICOM processing for structure: {rtstruct_file}, "
+                    f"plan: {rtplan_file}: {e_process}. Waiting for new files."
+                )
             finally:
-                # Always reset detected files for this pair attempt, regardless of success or failure,
-                # to allow new attempts if, e.g., a corrected file is dropped or if one part was bad.
-                print(f"Resetting detected files for pair: RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'. Ready for new detection cycle.")
+                # Always reset detected files, regardless of success or failure,
+                # to allow new attempts if a corrected file is dropped
+                print(
+                    f"Resetting detected files for pair: "
+                    f"RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'. "
+                    f"Ready for new detection cycle."
+                )
                 self.files_detected.pop("structure", None)
                 self.files_detected.pop("plan", None)
         else:
             print("Waiting for the corresponding RTSTRUCT/RTPLAN file to complete the pair.")
 
     def on_modified(self, event):
+        """
+        Handle file modification events (similar to on_created).
+
+        :param event: FileSystemEvent object containing event details.
+        """
         if event.is_directory:
             return
         # Same logic as on_created (wait_for_file_ready + dcmread + modality routing)
@@ -692,10 +776,17 @@ class DICOMEventHandler(FileSystemEventHandler):
             try:
                 dicom_file = pydicom.dcmread(event.src_path, force=True)
             except FileNotFoundError:
-                print(f"Error: File not found at {event.src_path} during metadata read attempt. It might have been moved or deleted.")
+                print(
+                    f"Error: File not found at {event.src_path} "
+                    f"during metadata read attempt. "
+                    f"It might have been moved or deleted."
+                )
                 return
             except pydicom.errors.InvalidDicomError as e_dicom:
-                print(f"Error reading DICOM metadata from {event.src_path}: {e_dicom}. File may not be a valid DICOM file or is corrupted.")
+                print(
+                    f"Error reading DICOM metadata from {event.src_path}: {e_dicom}. "
+                    f"File may not be a valid DICOM file or is corrupted."
+                )
                 return
             except Exception as e:
                 print(f"Unexpected error reading DICOM metadata from {event.src_path}: {e}")
@@ -704,17 +795,23 @@ class DICOMEventHandler(FileSystemEventHandler):
             try:
                 modality = dicom_file.Modality
                 if not modality: # Check if modality is None or empty string
-                    print(f"Warning: Modality tag is present but empty in {event.src_path}. Cannot determine file type. Skipping file.")
+                    print(
+                        f"Warning: Modality tag is present but empty in {event.src_path}. "
+                        f"Cannot determine file type. Skipping file."
+                    )
                     return
             except AttributeError:
-                print(f"Warning: Modality tag missing in {event.src_path}. Cannot determine if it's RTSTRUCT or RTPLAN. Skipping file.")
+                print(
+                    f"Warning: Modality tag missing in {event.src_path}. "
+                    f"Cannot determine if it's RTSTRUCT or RTPLAN. Skipping file."
+                )
                 return
             except Exception as e_modality: # Catch any other error during modality access
                 print(f"Unexpected error accessing Modality for {event.src_path}: {e_modality}. Skipping file.")
                 return
 
             print(f"File {event.src_path} identified with Modality: {modality}")
-            
+
             if modality == "RTSTRUCT":
                 self.files_detected["structure"] = event.src_path
                 print(f"RTSTRUCT file detected and stored: {event.src_path}")
@@ -722,35 +819,56 @@ class DICOMEventHandler(FileSystemEventHandler):
                 self.files_detected["plan"] = event.src_path
                 print(f"RTPLAN file detected and stored: {event.src_path}")
             else:
-                print(f"File {event.src_path} has Modality '{modality}', which is not RTSTRUCT or RTPLAN. Skipping.")
+                print(
+                    f"File {event.src_path} has Modality '{modality}', "
+                    f"which is not RTSTRUCT or RTPLAN. Skipping."
+                )
                 return # Not a file type we are interested in pairing.
-            
+
             # Check if both files are now detected
             if "structure" in self.files_detected and "plan" in self.files_detected:
                 rtstruct_file = self.files_detected["structure"]
                 rtplan_file = self.files_detected["plan"]
-                print(f"Both RTSTRUCT ({rtstruct_file}) and RTPLAN ({rtplan_file}) files detected. Initiating processing.")
+                print(
+                    f"Both RTSTRUCT ({rtstruct_file}) and RTPLAN ({rtplan_file}) "
+                    f"files detected. Initiating processing."
+                )
 
                 try:
                     handler = DICOMHandler(rtstruct_file, rtplan_file, self.interactive_mode)
-                    if handler.load_files(): # load_files() now has detailed internal logging
-                        handler.process_dicom_files() # process_dicom_files() also has detailed internal logging
-                        print(f"Finished processing pair: RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'.")
+                    if handler.load_files():
+                        handler.process_dicom_files()
+                        print(
+                            f"Finished processing pair: "
+                            f"RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'."
+                        )
                     else:
-                        print(f"Failed to load DICOM files for processing (structure: {rtstruct_file}, plan: {rtplan_file}). See previous errors from DICOMHandler.load_files(). Waiting for new files.")
+                        print(
+                            f"Failed to load DICOM files for processing "
+                            f"(structure: {rtstruct_file}, plan: {rtplan_file}). "
+                            f"See previous errors from DICOMHandler.load_files(). "
+                            f"Waiting for new files."
+                        )
                 except Exception as e_process:
-                    print(f"An unexpected error occurred during the setup or execution of DICOM processing for structure: {rtstruct_file}, plan: {rtplan_file}: {e_process}. Waiting for new files.")
+                    print(
+                        f"An unexpected error occurred during the setup or execution of "
+                        f"DICOM processing for structure: {rtstruct_file}, "
+                        f"plan: {rtplan_file}: {e_process}. Waiting for new files."
+                    )
                 finally:
-                    # Always reset detected files for this pair attempt, regardless of success or failure,
-                    # to allow new attempts if, e.g., a corrected file is dropped or if one part was bad.
-                    print(f"Resetting detected files for pair: RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'. Ready for new detection cycle.")
+                    # Always reset detected files, regardless of success or failure
+                    print(
+                        f"Resetting detected files for pair: "
+                        f"RTSTRUCT '{rtstruct_file}', RTPLAN '{rtplan_file}'. "
+                        f"Ready for new detection cycle."
+                    )
                     self.files_detected.pop("structure", None)
                     self.files_detected.pop("plan", None)
             else:
                 print("Waiting for the corresponding RTSTRUCT/RTPLAN file to complete the pair.")
 
 
-def start_monitoring(folder_to_watch, interactive_mode=False):
+def start_monitoring(folder_path, enable_interactive_mode=False):
     """
     Initializes and starts the file system observer to monitor the specified folder.
 
@@ -758,18 +876,18 @@ def start_monitoring(folder_to_watch, interactive_mode=False):
     to process them. This function runs indefinitely until interrupted
     (e.g., by KeyboardInterrupt).
 
-    :param folder_to_watch: The path to the folder that should be monitored.
-    :type folder_to_watch: str
-    :param interactive_mode: Whether to enable interactive structure selection.
-    :type interactive_mode: bool
+    :param folder_path: The path to the folder that should be monitored.
+    :type folder_path: str
+    :param enable_interactive_mode: Whether to enable interactive structure selection.
+    :type enable_interactive_mode: bool
     """
-    # Use the folder_to_watch argument passed to the function
-    print(f"Monitoring folder: {folder_to_watch}") 
-    if interactive_mode:
+    # Use the folder_path argument passed to the function
+    print(f"Monitoring folder: {folder_path}")
+    if enable_interactive_mode:
         print("Interactive mode enabled - will prompt for custom structure names when defaults not found")
-    event_handler = DICOMEventHandler(interactive_mode)
+    event_handler = DICOMEventHandler(enable_interactive_mode)
     observer = Observer()
-    observer.schedule(event_handler, folder_to_watch, recursive=False)
+    observer.schedule(event_handler, folder_path, recursive=False)
     observer.start()
     try:
         while True:
@@ -781,9 +899,9 @@ def start_monitoring(folder_to_watch, interactive_mode=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Monitors a folder for DICOM RTSTRUCT and RTPLAN files and calculates centroids.")
     parser.add_argument(
-        "-f", 
-        "--folder", 
-        type=str, 
+        "-f",
+        "--folder",
+        type=str,
         default=r"C:\kim",
         help="Path to the folder to monitor for DICOM files. Default: C:\\kim"
     )
@@ -798,13 +916,13 @@ if __name__ == "__main__":
     interactive_mode = args.interactive
 
     print(f"Initializing DICOM monitoring script for folder: {folder_to_watch}")
-    
+
     # If interactive mode wasn't specified via command line, prompt user at startup
     if not interactive_mode:
         interactive_mode = prompt_for_interactive_mode()
     else:
         print("Interactive mode ENABLED via command line argument.")
-    
+
     try:
         # Note: The start_monitoring function also prints "Monitoring folder: {monitoring_path}"
         # where monitoring_path is currently hardcoded to C:\kim inside it.
@@ -813,12 +931,12 @@ if __name__ == "__main__":
     except Exception as e:
         # This is a last resort catch for unexpected errors in start_monitoring
         # or its setup that weren't KeyboardInterrupt.
-        exception_type = type(e).__name__
-        print(f"\n---------------------------------------------------------------------")
-        print(f"CRITICAL ERROR: A critical unexpected error occurred in the monitoring script.")
-        print(f"Error Type: {exception_type}")
+        error_type_name = type(e).__name__
+        print("\n---------------------------------------------------------------------")
+        print("CRITICAL ERROR: A critical unexpected error occurred in the monitoring script.")
+        print(f"Error Type: {error_type_name}")
         print(f"Error Message: {e}")
-        print(f"The monitoring script will now terminate.")
-        print(f"---------------------------------------------------------------------")
+        print("The monitoring script will now terminate.")
+        print("---------------------------------------------------------------------")
         # Depending on the deployment, you might want to log this to a file as well.
         # For now, printing to console is the requirement.
