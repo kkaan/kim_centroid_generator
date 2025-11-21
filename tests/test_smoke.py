@@ -49,7 +49,7 @@ class TestDICOMHandler:
         handler = DICOMHandler(
             "dummy_struct.dcm",
             "dummy_plan.dcm",
-            interactive_mode=False
+            enable_interactive=False
         )
 
         assert handler is not None
@@ -98,7 +98,7 @@ class TestEventHandler:
         """DICOMEventHandler can be instantiated"""
         from KIM_Centroid_using_Folder_Monitoring import DICOMEventHandler
 
-        handler = DICOMEventHandler(interactive_mode=False)
+        handler = DICOMEventHandler(enable_interactive=False)
 
         assert handler is not None
         assert handler.interactive_mode is False
