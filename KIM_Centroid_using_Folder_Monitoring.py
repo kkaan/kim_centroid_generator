@@ -763,8 +763,61 @@ def start_monitoring(folder_to_watch, interactive_mode=False):
     :param interactive_mode: Whether to enable interactive structure selection.
     :type interactive_mode: bool
     """
+    # Validate that the folder exists
+    while not os.path.exists(folder_to_watch):
+        print("\n" + "="*60)
+        print(f"WARNING: Watch folder does not exist!")
+        print(f"Path: {folder_to_watch}")
+        print("="*60)
+        print("\nPlease choose an option:")
+        print("1. Create this folder")
+        print("2. Enter a different folder path")
+        print("3. Exit program")
+        print("="*60)
+        
+        try:
+            choice = input("Enter your choice (1, 2, or 3): ").strip()
+            
+            if choice == "1":
+                # Create the folder
+                try:
+                    os.makedirs(folder_to_watch, exist_ok=True)
+                    print(f"Successfully created folder: {folder_to_watch}")
+                    break
+                except Exception as e:
+                    print(f"ERROR: Failed to create folder: {e}")
+                    print("Please try again or choose a different option.")
+                    
+            elif choice == "2":
+                # Get alternative folder path from user
+                new_path = input("Enter the full path to the folder you want to monitor: ").strip()
+                if new_path:
+                    folder_to_watch = new_path
+                    # Loop will continue and check if this new path exists
+                else:
+                    print("No path entered. Please try again.")
+                    
+            elif choice == "3":
+                print("Exiting program.")
+                return
+            else:
+                print("Invalid choice. Please enter 1, 2, or 3.")
+                
+        except KeyboardInterrupt:
+            print("\n\nOperation cancelled by user.")
+            return
+        except EOFError:
+            print("\n\nInput stream closed. Exiting.")
+            return
+    
+    # Additional check to ensure it's actually a directory
+    if not os.path.isdir(folder_to_watch):
+        print(f"\nERROR: Path exists but is not a folder: {folder_to_watch}")
+        print("Please provide a valid folder path.")
+        return
+    
     # Use the folder_to_watch argument passed to the function
-    print(f"Monitoring folder: {folder_to_watch}") 
+    print(f"\nMonitoring folder: {folder_to_watch}") 
     if interactive_mode:
         print("Interactive mode enabled - will prompt for custom structure names when defaults not found")
     event_handler = DICOMEventHandler(interactive_mode)
