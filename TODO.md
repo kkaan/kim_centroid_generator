@@ -17,7 +17,7 @@
 - [x] Improved PyInstaller executable build configuration
 - [x] Comprehensive documentation in CLAUDE.md
 - [x] Personal progress tracking system established
-- [ ] Fix PyInstaller permission error and create Windows executable
+- [x] Fix PyInstaller permission error and create Windows executable
 
 ## Testing & Validation Results
 - [x] Compared original baseline branch output with interactive mode branch output
@@ -25,16 +25,12 @@
   - **Result**: Identical centroid calculations - interactive mode additions have not affected core functionality
 - [x] KIM reads centroid files outputted from new code without any errors
   - Output format validated and compatible with KIM system
-- [ ] Still need to validate against Spark data and other test datasets
+- [x] Manually edit structuresets in mim and check is centroid locations match the shifts.
+- [ ] We need to check against spark (see below).
 
 ## Next Priority: Validation Against Spark Test Set
 - [ ] Validate application with Spark Centre test data
 - [ ] Compare centroid calculations with Spark reference data
-- [ ] **CRITICAL**: Investigate isocenter mismatches in test set
-  - Identify which test cases have mismatched isocenters
-  - Determine if issue is in our calculation or Spark reference
-  - Check DICOM tag interpretation differences
-  - Verify coordinate system transformations
 
 ## Technical Investigation Tasks
 - [ ] Add detailed logging for isocenter extraction process
@@ -48,13 +44,12 @@
 - [ ] Create test report format for clinical validation
 
 ## Build & Deployment
-- [ ] Complete Windows executable creation
-- [ ] Complete terminal interactions feature
-- [ ] Test executable on clean Windows machines
-- [ ] Test executable with real-world DICOM files
-- [ ] Performance testing with large DICOM files
-- [ ] Performance optimization for large file sets
+- [x] Complete Windows executable creation
+- [x] Complete terminal interactions feature
+- [x] Auto build workflow setup in github
+- [ ] Auto test workflow setup in github
+
 
 ---
-*Last updated: Sat Aug 16 18:58:32 AEST 2025*
+*Last updated: Sat Dec 10 14:58:32 AEST 2025*
 
